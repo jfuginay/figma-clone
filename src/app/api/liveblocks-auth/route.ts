@@ -1,4 +1,4 @@
-import { liveblocks } from "@/lib/liveblocks";
+import { getLiveblocks } from "@/lib/liveblocks";
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { NextRequest } from "next/server";
 
@@ -23,10 +23,13 @@ export async function POST(request: NextRequest) {
     avatar: user.imageUrl,
   };
 
-  // Create a session for the current user
-  const session = liveblocks.prepareSession(userId, {
+  // Create a session for the current user. Defer Liveblocks
+  // instantiation until runtime so missing env vars produce a
+  // helpful runtime error instead of failing the build.
+  const liveblocks = getLiveblocks();
+  const session = (liveblocks.prepareSession(userId, {
     userInfo,
-  });
+  }) as import("@/lib/liveblocks").LiveblocksSession);
 
   // Grant access to the room
   if (room) {
