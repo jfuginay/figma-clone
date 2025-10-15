@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 // Export Tool type separately so it can be imported by other components
-export type Tool = "select" | "rectangle" | "circle" | "triangle" | "line" | "text";
+export type Tool = "select" | "pan" | "delete" | "rectangle" | "circle" | "triangle" | "line" | "text";
 
 const COLORS = [
   "#3B82F6", // blue
@@ -33,6 +33,8 @@ export default function Toolbar({
 
   const tools: { id: Tool; label: string; icon: string }[] = [
     { id: "select", label: "Select", icon: "⌃" },
+    { id: "pan", label: "Pan", icon: "✋" },
+    { id: "delete", label: "Delete", icon: "🗑️" },
     { id: "rectangle", label: "Rectangle", icon: "▭" },
     { id: "circle", label: "Circle", icon: "○" },
     { id: "triangle", label: "Triangle", icon: "△" },

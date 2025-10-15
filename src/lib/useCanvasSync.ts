@@ -49,6 +49,7 @@ export function useCanvasSync(canvas: fabric.Canvas | null) {
         serialized.version = (serialized.version || 0) + 1;
         const objectsMap = storage.get("objects");
         objectsMap.set(serialized.id, serialized);
+        console.log("✅ Synced to Liveblocks:", serialized.type, serialized.id);
       }
     },
     [canvas]
@@ -85,6 +86,10 @@ export function useCanvasSync(canvas: fabric.Canvas | null) {
 
       const fabricObject = e.target;
 
+      // Skip grid lines
+      const isGrid = (fabricObject as fabric.Object & { data?: { isGrid?: boolean } }).data?.isGrid;
+      if (isGrid) return;
+
       // Assign ID if not present
       if (!(fabricObject as fabric.Object & { id?: string }).id) {
         (fabricObject as fabric.Object & { id: string }).id = `object-${Date.now()}-${Math.random()
@@ -97,11 +102,20 @@ export function useCanvasSync(canvas: fabric.Canvas | null) {
 
     const handleObjectModified = (e: { target: fabric.Object }) => {
       if (!e.target || isLocalChangeRef.current) return;
+
+      // Skip grid lines
+      const isGrid = (e.target as fabric.Object & { data?: { isGrid?: boolean } }).data?.isGrid;
+      if (isGrid) return;
+
       debouncedSyncToLiveblocks(e.target);
     };
 
     const handleObjectRemoved = (e: { target: fabric.Object }) => {
       if (!e.target || isLocalChangeRef.current) return;
+
+      // Skip grid lines
+      const isGrid = (e.target as fabric.Object & { data?: { isGrid?: boolean } }).data?.isGrid;
+      if (isGrid) return;
 
       const id = (e.target as fabric.Object & { id?: string }).id;
       if (id) {
@@ -207,6 +221,7 @@ export function useCanvasSync(canvas: fabric.Canvas | null) {
     gridObjects.forEach((obj) => canvas.add(obj));
 
     // Load objects from Liveblocks
+    let loadedCount = 0;
     if (objects && typeof objects === "object") {
       const objMap = objects as { entries?: () => Iterable<[string, CanvasObject]> };
       if (objMap.entries) {
@@ -214,11 +229,13 @@ export function useCanvasSync(canvas: fabric.Canvas | null) {
           const fabricObj = deserializeLiveblocksObject(lbObject);
           if (fabricObj) {
             canvas.add(fabricObj);
+            loadedCount++;
           }
         }
       }
     }
 
+    console.log(`📥 Loaded ${loadedCount} objects from Liveblocks`);
     canvas.requestRenderAll();
 
     setTimeout(() => {

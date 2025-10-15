@@ -3,9 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import * as fabric from "fabric";
 import ZoomControls from "./ZoomControls";
+import ConfirmDialog from "./ConfirmDialog";
 import { useCanvasSync } from "@/lib/useCanvasSync";
 
-export type Tool = "select" | "rectangle" | "circle" | "triangle" | "line" | "text";
+export type Tool = "select" | "pan" | "delete" | "rectangle" | "circle" | "triangle" | "line" | "text";
 
 interface CanvasProps {
   activeTool?: Tool;
@@ -41,14 +42,51 @@ export default function Canvas({
 }: CanvasProps & { onToolChange?: (tool: Tool) => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fabricCanvasRef = useRef<fabric.Canvas | null>(null);
+  const [fabricCanvas, setFabricCanvas] = useState<fabric.Canvas | null>(null);
   const [zoom, setZoom] = useState(1);
   const [isPanning, setIsPanning] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const isDrawingRef = useRef(false);
+  const isPanDraggingRef = useRef(false);
   const startPointRef = useRef<{ x: number; y: number } | null>(null);
   const currentShapeRef = useRef<fabric.Object | null>(null);
-  
-  // Integrate canvas sync for persistence
-  useCanvasSync(fabricCanvasRef.current);
+  const objectToDeleteRef = useRef<fabric.Object | null>(null);
+
+  // Use refs to track tool and color without triggering canvas re-initialization
+  const activeToolRef = useRef(activeTool);
+  const activeColorRef = useRef(activeColor);
+
+  // Sync canvas with Liveblocks for persistence
+  useCanvasSync(fabricCanvas);
+
+  // Update refs when props change
+  useEffect(() => {
+    activeToolRef.current = activeTool;
+
+    // Update canvas settings when switching tools
+    const canvas = fabricCanvasRef.current;
+    if (canvas) {
+      if (activeTool === "pan") {
+        setIsPanning(true);
+        canvas.selection = false;
+        canvas.defaultCursor = "grab";
+      } else if (activeTool === "delete") {
+        setIsPanning(false);
+        isPanDraggingRef.current = false;
+        canvas.selection = false;
+        canvas.defaultCursor = "pointer";
+      } else {
+        setIsPanning(false);
+        isPanDraggingRef.current = false;
+        canvas.selection = true;
+        canvas.defaultCursor = "default";
+      }
+    }
+  }, [activeTool]);
+
+  useEffect(() => {
+    activeColorRef.current = activeColor;
+  }, [activeColor]);
 
   useEffect(() => {
     if (!canvasRef.current) return;
@@ -67,6 +105,7 @@ export default function Canvas({
     canvas.selectionLineWidth = 2;
 
     fabricCanvasRef.current = canvas;
+    setFabricCanvas(canvas);
 
     // Add a subtle grid background
     const gridSize = 50;
@@ -198,6 +237,7 @@ export default function Canvas({
       if (e.code === "Space") {
         e.preventDefault();
         isSpacePressed = false;
+        isPanDraggingRef.current = false;
         setIsPanning(false);
         canvas.selection = true;
         canvas.defaultCursor = "default";
@@ -206,21 +246,35 @@ export default function Canvas({
 
     const handleMouseDown = (opt: fabric.TEvent) => {
       const evt = opt.e as MouseEvent;
-      if (isSpacePressed) {
+      const isPanMode = isSpacePressed || activeToolRef.current === "pan";
+
+      if (isPanMode) {
         canvas.defaultCursor = "grabbing";
+        isPanDraggingRef.current = true;
         lastPosX = evt.clientX;
         lastPosY = evt.clientY;
         return;
       }
 
-      // Handle shape creation
+      // Handle delete mode
       const hasTarget = "target" in opt && opt.target;
-      if (activeTool !== "select" && !hasTarget) {
+      if (activeToolRef.current === "delete" && hasTarget) {
+        const target = opt.target as fabric.Object;
+        // Don't delete grid lines
+        if (!(target as fabric.Object & { data?: { isGrid?: boolean } }).data?.isGrid) {
+          objectToDeleteRef.current = target;
+          setShowDeleteConfirm(true);
+        }
+        return;
+      }
+
+      // Handle shape creation
+      if (activeToolRef.current !== "select" && activeToolRef.current !== "delete" && !hasTarget) {
         const pointer = canvas.getPointer(evt);
         isDrawingRef.current = true;
         startPointRef.current = { x: pointer.x, y: pointer.y };
 
-        if (activeTool === "rectangle") {
+        if (activeToolRef.current === "rectangle") {
           const rect = new fabric.Rect({
             left: pointer.x,
             top: pointer.y,
@@ -228,23 +282,23 @@ export default function Canvas({
             height: 0,
             selectable: false,
           });
-          configureShapeStyle(rect, activeColor);
+          configureShapeStyle(rect, activeColorRef.current);
           // Assign unique ID
           (rect as fabric.Object & { id: string }).id = generateShapeId();
           currentShapeRef.current = rect;
           canvas.add(rect);
-        } else if (activeTool === "circle") {
+        } else if (activeToolRef.current === "circle") {
           const circle = new fabric.Circle({
             left: pointer.x,
             top: pointer.y,
             radius: 0,
             selectable: false,
           });
-          configureShapeStyle(circle, activeColor);
+          configureShapeStyle(circle, activeColorRef.current);
           (circle as fabric.Object & { id: string }).id = generateShapeId();
           currentShapeRef.current = circle;
           canvas.add(circle);
-        } else if (activeTool === "triangle") {
+        } else if (activeToolRef.current === "triangle") {
           const triangle = new fabric.Triangle({
             left: pointer.x,
             top: pointer.y,
@@ -252,13 +306,13 @@ export default function Canvas({
             height: 0,
             selectable: false,
           });
-          configureShapeStyle(triangle, activeColor);
+          configureShapeStyle(triangle, activeColorRef.current);
           (triangle as fabric.Object & { id: string }).id = generateShapeId();
           currentShapeRef.current = triangle;
           canvas.add(triangle);
-        } else if (activeTool === "line") {
+        } else if (activeToolRef.current === "line") {
           const line = new fabric.Line([pointer.x, pointer.y, pointer.x, pointer.y], {
-            stroke: activeColor,
+            stroke: activeColorRef.current,
             strokeWidth: 3,
             selectable: false,
             borderColor: "#3B82F6",
@@ -271,12 +325,12 @@ export default function Canvas({
           (line as fabric.Object & { id: string }).id = generateShapeId();
           currentShapeRef.current = line;
           canvas.add(line);
-        } else if (activeTool === "text") {
+        } else if (activeToolRef.current === "text") {
           const text = new fabric.IText("Text", {
             left: pointer.x,
             top: pointer.y,
             fontSize: 24,
-            fill: activeColor,
+            fill: activeColorRef.current,
             fontFamily: "Arial",
             borderColor: "#3B82F6",
             cornerColor: "#3B82F6",
@@ -289,6 +343,7 @@ export default function Canvas({
           canvas.add(text);
           canvas.setActiveObject(text);
           text.enterEditing();
+          text.selectAll();
           canvas.requestRenderAll();
         }
       }
@@ -296,7 +351,8 @@ export default function Canvas({
 
     const handleMouseMove = (opt: fabric.TEvent) => {
       const evt = opt.e as MouseEvent;
-      if (isSpacePressed && opt.e.type === "mousemove") {
+
+      if (isPanDraggingRef.current && opt.e.type === "mousemove") {
         const vpt = canvas.viewportTransform;
         if (vpt) {
           vpt[4] += evt.clientX - lastPosX;
@@ -313,7 +369,7 @@ export default function Canvas({
         const pointer = canvas.getPointer(evt);
         const shape = currentShapeRef.current;
 
-        if (activeTool === "rectangle" && shape instanceof fabric.Rect) {
+        if (activeToolRef.current === "rectangle" && shape instanceof fabric.Rect) {
           const width = pointer.x - startPointRef.current.x;
           const height = pointer.y - startPointRef.current.y;
 
@@ -323,7 +379,7 @@ export default function Canvas({
             left: width > 0 ? startPointRef.current.x : pointer.x,
             top: height > 0 ? startPointRef.current.y : pointer.y,
           });
-        } else if (activeTool === "circle" && shape instanceof fabric.Circle) {
+        } else if (activeToolRef.current === "circle" && shape instanceof fabric.Circle) {
           const deltaX = pointer.x - startPointRef.current.x;
           const deltaY = pointer.y - startPointRef.current.y;
           const radius = Math.sqrt(deltaX * deltaX + deltaY * deltaY) / 2;
@@ -333,7 +389,7 @@ export default function Canvas({
             left: startPointRef.current.x,
             top: startPointRef.current.y,
           });
-        } else if (activeTool === "triangle" && shape instanceof fabric.Triangle) {
+        } else if (activeToolRef.current === "triangle" && shape instanceof fabric.Triangle) {
           const width = pointer.x - startPointRef.current.x;
           const height = pointer.y - startPointRef.current.y;
 
@@ -343,7 +399,7 @@ export default function Canvas({
             left: width > 0 ? startPointRef.current.x : pointer.x,
             top: height > 0 ? startPointRef.current.y : pointer.y,
           });
-        } else if (activeTool === "line" && shape instanceof fabric.Line) {
+        } else if (activeToolRef.current === "line" && shape instanceof fabric.Line) {
           shape.set({
             x2: pointer.x,
             y2: pointer.y,
@@ -355,8 +411,11 @@ export default function Canvas({
     };
 
     const handleMouseUp = () => {
-      if (isSpacePressed) {
+      const isPanMode = isSpacePressed || activeToolRef.current === "pan";
+
+      if (isPanMode) {
         canvas.defaultCursor = "grab";
+        isPanDraggingRef.current = false;
         return;
       }
 
@@ -461,8 +520,28 @@ export default function Canvas({
       window.removeEventListener("resize", handleResize);
       canvas.dispose();
       fabricCanvasRef.current = null;
+      setFabricCanvas(null);
     };
-  }, [onCanvasReady, activeTool, activeColor]);
+  }, [onCanvasReady]);
+
+  // Handle delete confirmation
+  const handleDeleteConfirm = () => {
+    const canvas = fabricCanvasRef.current;
+    const objectToDelete = objectToDeleteRef.current;
+
+    if (canvas && objectToDelete) {
+      canvas.remove(objectToDelete);
+      canvas.requestRenderAll();
+    }
+
+    setShowDeleteConfirm(false);
+    objectToDeleteRef.current = null;
+  };
+
+  const handleDeleteCancel = () => {
+    setShowDeleteConfirm(false);
+    objectToDeleteRef.current = null;
+  };
 
   return (
     <div className="relative w-full h-full">
@@ -477,6 +556,13 @@ export default function Canvas({
         canvas={fabricCanvasRef.current}
         zoom={zoom}
         onZoomChange={setZoom}
+      />
+      <ConfirmDialog
+        isOpen={showDeleteConfirm}
+        title="Delete Object"
+        message="Are you sure you want to delete this object? This action cannot be undone."
+        onConfirm={handleDeleteConfirm}
+        onCancel={handleDeleteCancel}
       />
     </div>
   );
