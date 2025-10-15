@@ -284,7 +284,7 @@ export default function Canvas({
           });
           configureShapeStyle(rect, activeColorRef.current);
           // Assign unique ID
-          (rect as fabric.Object & { id: string }).id = generateShapeId();
+          (rect as unknown as fabric.Object & { id: string }).id = generateShapeId();
           currentShapeRef.current = rect;
           canvas.add(rect);
         } else if (activeToolRef.current === "circle") {
@@ -295,7 +295,7 @@ export default function Canvas({
             selectable: false,
           });
           configureShapeStyle(circle, activeColorRef.current);
-          (circle as fabric.Object & { id: string }).id = generateShapeId();
+          (circle as unknown as fabric.Object & { id: string }).id = generateShapeId();
           currentShapeRef.current = circle;
           canvas.add(circle);
         } else if (activeToolRef.current === "triangle") {
@@ -307,7 +307,7 @@ export default function Canvas({
             selectable: false,
           });
           configureShapeStyle(triangle, activeColorRef.current);
-          (triangle as fabric.Object & { id: string }).id = generateShapeId();
+          (triangle as unknown as fabric.Object & { id: string }).id = generateShapeId();
           currentShapeRef.current = triangle;
           canvas.add(triangle);
         } else if (activeToolRef.current === "line") {
@@ -322,7 +322,7 @@ export default function Canvas({
             transparentCorners: false,
             borderScaleFactor: 2,
           });
-          (line as fabric.Object & { id: string }).id = generateShapeId();
+          (line as unknown as fabric.Object & { id: string }).id = generateShapeId();
           currentShapeRef.current = line;
           canvas.add(line);
         } else if (activeToolRef.current === "text") {
@@ -339,7 +339,7 @@ export default function Canvas({
             transparentCorners: false,
             borderScaleFactor: 2,
           });
-          (text as fabric.Object & { id: string }).id = generateShapeId();
+          (text as unknown as fabric.Object & { id: string }).id = generateShapeId();
           canvas.add(text);
           canvas.setActiveObject(text);
           text.enterEditing();
@@ -522,7 +522,7 @@ export default function Canvas({
       fabricCanvasRef.current = null;
       setFabricCanvas(null);
     };
-  }, [onCanvasReady]);
+  }, [onCanvasReady, onToolChange]);
 
   // Handle delete confirmation
   const handleDeleteConfirm = () => {
