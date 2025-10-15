@@ -29,22 +29,25 @@ export function serializeFabricObject(
   };
 
   // Determine shape type and add type-specific properties
-  if (fabricObject instanceof fabric.Rect) {
+  // Check both instanceof and type property for compatibility
+  const objectType = (fabricObject as fabric.Object & { type?: string }).type;
+
+  if (fabricObject instanceof fabric.Rect || objectType === 'rect') {
     return {
       ...baseObject,
       type: "rect" as ShapeType,
     };
-  } else if (fabricObject instanceof fabric.Circle) {
+  } else if (fabricObject instanceof fabric.Circle || objectType === 'circle') {
     return {
       ...baseObject,
       type: "circle" as ShapeType,
     };
-  } else if (fabricObject instanceof fabric.Triangle) {
+  } else if (fabricObject instanceof fabric.Triangle || objectType === 'triangle') {
     return {
       ...baseObject,
       type: "triangle" as ShapeType,
     };
-  } else if (fabricObject instanceof fabric.IText) {
+  } else if (fabricObject instanceof fabric.IText || fabricObject instanceof fabric.Text || objectType === 'i-text' || objectType === 'text') {
     return {
       ...baseObject,
       type: "text" as ShapeType,
@@ -54,7 +57,7 @@ export function serializeFabricObject(
     };
   }
 
-  console.warn("Unknown fabric object type, skipping serialization");
+  console.warn("Unknown fabric object type, skipping serialization", objectType, fabricObject);
   return null;
 }
 

@@ -1,25 +1,21 @@
 "use client";
 
 import { useState, useCallback, useRef } from "react";
-import * as fabric from "fabric";
 import Canvas from "@/components/Canvas";
 import Toolbar, { Tool } from "@/components/Toolbar";
 import { Room } from "@/components/Room";
 import { UserButton } from "@clerk/nextjs";
-import { useCanvasSync } from "@/lib/useCanvasSync";
 import LiveCursors from "@/components/LiveCursors";
 import ActiveUsers from "@/components/ActiveUsers";
 import { useUpdateMyPresence } from "@/liveblocks.config";
 
 function CanvasContent() {
-  const [canvas, setCanvas] = useState<fabric.Canvas | null>(null);
   const [activeTool, setActiveTool] = useState<Tool>("select");
   const [activeColor, setActiveColor] = useState("#3B82F6");
   const updateMyPresence = useUpdateMyPresence();
   const canvasContainerRef = useRef<HTMLDivElement>(null);
 
-  // Initialize canvas sync
-  useCanvasSync(canvas);
+  // Canvas sync is handled inside Canvas component
 
   // Throttle cursor updates to 60fps (16ms)
   const lastUpdateRef = useRef(0);
@@ -70,7 +66,6 @@ function CanvasContent() {
         <Canvas
           activeTool={activeTool}
           activeColor={activeColor}
-          onCanvasReady={setCanvas}
         />
 
         {/* Multiplayer Cursors */}
