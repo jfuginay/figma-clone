@@ -3,8 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import * as fabric from "fabric";
 import ZoomControls from "./ZoomControls";
+import { useCanvasSync } from "@/lib/useCanvasSync";
 
-export type Tool = "select" | "rectangle" | "circle" | "text";
+export type Tool = "select" | "rectangle" | "circle" | "triangle" | "line" | "text";
 
 interface CanvasProps {
   activeTool?: Tool;
@@ -12,11 +13,32 @@ interface CanvasProps {
   onCanvasReady?: (canvas: fabric.Canvas) => void;
 }
 
+// Helper to generate unique IDs for shapes
+function generateShapeId(): string {
+  return `shape-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+}
+
+// Helper to configure shape selection styling
+function configureShapeStyle(shape: fabric.Object, color: string) {
+  shape.set({
+    borderColor: "#3B82F6",
+    cornerColor: "#3B82F6",
+    cornerStyle: "circle",
+    cornerSize: 8,
+    transparentCorners: false,
+    borderScaleFactor: 2,
+    fill: color,
+    stroke: color,
+    strokeWidth: 2,
+  });
+}
+
 export default function Canvas({
   activeTool = "select",
   activeColor = "#3B82F6",
   onCanvasReady,
-}: CanvasProps) {
+  onToolChange,
+}: CanvasProps & { onToolChange?: (tool: Tool) => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fabricCanvasRef = useRef<fabric.Canvas | null>(null);
   const [zoom, setZoom] = useState(1);
@@ -24,6 +46,9 @@ export default function Canvas({
   const isDrawingRef = useRef(false);
   const startPointRef = useRef<{ x: number; y: number } | null>(null);
   const currentShapeRef = useRef<fabric.Object | null>(null);
+  
+  // Integrate canvas sync for persistence
+  useCanvasSync(fabricCanvasRef.current);
 
   useEffect(() => {
     if (!canvasRef.current) return;
@@ -93,12 +118,36 @@ export default function Canvas({
     let lastPosY = 0;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.code === "Space" && !isSpacePressed) {
+      // Don't handle shortcuts when editing text
+      const activeObject = canvas.getActiveObject();
+      const isEditingText = activeObject instanceof fabric.IText && activeObject.isEditing;
+
+      if (e.code === "Space" && !isSpacePressed && !isEditingText) {
         e.preventDefault();
         isSpacePressed = true;
         setIsPanning(true);
         canvas.selection = false;
         canvas.defaultCursor = "grab";
+      }
+
+      // Tool shortcuts (only when not editing text)
+      if (!isEditingText && onToolChange) {
+        if (e.key.toLowerCase() === "v") {
+          e.preventDefault();
+          onToolChange("select");
+        } else if (e.key.toLowerCase() === "r") {
+          e.preventDefault();
+          onToolChange("rectangle");
+        } else if (e.key.toLowerCase() === "c") {
+          e.preventDefault();
+          onToolChange("circle");
+        } else if (e.key.toLowerCase() === "t" && !e.metaKey && !e.ctrlKey) {
+          e.preventDefault();
+          onToolChange("text");
+        } else if (e.key.toLowerCase() === "l") {
+          e.preventDefault();
+          onToolChange("line");
+        }
       }
 
       // Handle object deletion with Delete or Backspace
@@ -121,6 +170,27 @@ export default function Canvas({
             canvas.requestRenderAll();
           }
         }
+      }
+
+      // Select all with Cmd/Ctrl + A
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "a" && !isEditingText) {
+        e.preventDefault();
+        const allObjects = canvas.getObjects().filter(
+          (obj) => !(obj as fabric.Object & { data?: { isGrid?: boolean } }).data?.isGrid
+        );
+        if (allObjects.length > 0) {
+          canvas.discardActiveObject();
+          const selection = new fabric.ActiveSelection(allObjects, { canvas });
+          canvas.setActiveObject(selection);
+          canvas.requestRenderAll();
+        }
+      }
+
+      // Deselect all with Cmd/Ctrl + D
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "d" && !isEditingText) {
+        e.preventDefault();
+        canvas.discardActiveObject();
+        canvas.requestRenderAll();
       }
     };
 
@@ -156,17 +226,11 @@ export default function Canvas({
             top: pointer.y,
             width: 0,
             height: 0,
-            fill: activeColor,
-            stroke: activeColor,
-            strokeWidth: 2,
             selectable: false,
-            borderColor: "#3B82F6",
-            cornerColor: "#3B82F6",
-            cornerStyle: "circle",
-            cornerSize: 8,
-            transparentCorners: false,
-            borderScaleFactor: 2,
           });
+          configureShapeStyle(rect, activeColor);
+          // Assign unique ID
+          (rect as fabric.Object & { id: string }).id = generateShapeId();
           currentShapeRef.current = rect;
           canvas.add(rect);
         } else if (activeTool === "circle") {
@@ -174,9 +238,28 @@ export default function Canvas({
             left: pointer.x,
             top: pointer.y,
             radius: 0,
-            fill: activeColor,
+            selectable: false,
+          });
+          configureShapeStyle(circle, activeColor);
+          (circle as fabric.Object & { id: string }).id = generateShapeId();
+          currentShapeRef.current = circle;
+          canvas.add(circle);
+        } else if (activeTool === "triangle") {
+          const triangle = new fabric.Triangle({
+            left: pointer.x,
+            top: pointer.y,
+            width: 0,
+            height: 0,
+            selectable: false,
+          });
+          configureShapeStyle(triangle, activeColor);
+          (triangle as fabric.Object & { id: string }).id = generateShapeId();
+          currentShapeRef.current = triangle;
+          canvas.add(triangle);
+        } else if (activeTool === "line") {
+          const line = new fabric.Line([pointer.x, pointer.y, pointer.x, pointer.y], {
             stroke: activeColor,
-            strokeWidth: 2,
+            strokeWidth: 3,
             selectable: false,
             borderColor: "#3B82F6",
             cornerColor: "#3B82F6",
@@ -185,8 +268,9 @@ export default function Canvas({
             transparentCorners: false,
             borderScaleFactor: 2,
           });
-          currentShapeRef.current = circle;
-          canvas.add(circle);
+          (line as fabric.Object & { id: string }).id = generateShapeId();
+          currentShapeRef.current = line;
+          canvas.add(line);
         } else if (activeTool === "text") {
           const text = new fabric.IText("Text", {
             left: pointer.x,
@@ -201,6 +285,7 @@ export default function Canvas({
             transparentCorners: false,
             borderScaleFactor: 2,
           });
+          (text as fabric.Object & { id: string }).id = generateShapeId();
           canvas.add(text);
           canvas.setActiveObject(text);
           text.enterEditing();
@@ -248,6 +333,21 @@ export default function Canvas({
             left: startPointRef.current.x,
             top: startPointRef.current.y,
           });
+        } else if (activeTool === "triangle" && shape instanceof fabric.Triangle) {
+          const width = pointer.x - startPointRef.current.x;
+          const height = pointer.y - startPointRef.current.y;
+
+          shape.set({
+            width: Math.abs(width),
+            height: Math.abs(height),
+            left: width > 0 ? startPointRef.current.x : pointer.x,
+            top: height > 0 ? startPointRef.current.y : pointer.y,
+          });
+        } else if (activeTool === "line" && shape instanceof fabric.Line) {
+          shape.set({
+            x2: pointer.x,
+            y2: pointer.y,
+          });
         }
 
         canvas.requestRenderAll();
@@ -262,12 +362,40 @@ export default function Canvas({
 
       // Finish shape creation
       if (isDrawingRef.current && currentShapeRef.current) {
-        currentShapeRef.current.set({ selectable: true });
-        canvas.setActiveObject(currentShapeRef.current);
+        const shape = currentShapeRef.current;
+        const minSize = 10;
+        let isValidShape = true;
+
+        // Validate minimum size for shapes
+        if (shape instanceof fabric.Rect || shape instanceof fabric.Triangle) {
+          const width = (shape.width || 0) * (shape.scaleX || 1);
+          const height = (shape.height || 0) * (shape.scaleY || 1);
+          isValidShape = width >= minSize && height >= minSize;
+        } else if (shape instanceof fabric.Circle) {
+          const radius = (shape.radius || 0) * (shape.scaleX || 1);
+          isValidShape = radius >= minSize / 2;
+        } else if (shape instanceof fabric.Line) {
+          const x1 = shape.x1 || 0;
+          const y1 = shape.y1 || 0;
+          const x2 = shape.x2 || 0;
+          const y2 = shape.y2 || 0;
+          const length = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
+          isValidShape = length >= minSize;
+        }
+
+        if (isValidShape) {
+          // Make shape selectable and set as active
+          shape.set({ selectable: true });
+          canvas.setActiveObject(shape);
+          canvas.requestRenderAll();
+        } else {
+          // Remove shape if too small
+          canvas.remove(shape);
+        }
+
         isDrawingRef.current = false;
         startPointRef.current = null;
         currentShapeRef.current = null;
-        canvas.requestRenderAll();
       }
     };
 

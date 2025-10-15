@@ -44,6 +44,15 @@ export function serializeFabricObject(
       ...baseObject,
       type: "triangle" as ShapeType,
     };
+  } else if (fabricObject instanceof fabric.Line) {
+    return {
+      ...baseObject,
+      type: "line" as ShapeType,
+      x1: (fabricObject as fabric.Line).x1,
+      y1: (fabricObject as fabric.Line).y1,
+      x2: (fabricObject as fabric.Line).x2,
+      y2: (fabricObject as fabric.Line).y2,
+    };
   } else if (fabricObject instanceof fabric.IText) {
     return {
       ...baseObject,
@@ -99,6 +108,26 @@ export function deserializeLiveblocksObject(
         width: lbObject.width / (lbObject.scaleX || 1),
         height: lbObject.height / (lbObject.scaleY || 1),
       });
+      break;
+
+    case "line":
+      fabricObject = new fabric.Line(
+        [
+          lbObject.x1 || 0,
+          lbObject.y1 || 0,
+          lbObject.x2 || 0,
+          lbObject.y2 || 0,
+        ],
+        {
+          left: lbObject.x,
+          top: lbObject.y,
+          stroke: lbObject.stroke || lbObject.fill,
+          strokeWidth: lbObject.strokeWidth || 2,
+          scaleX: lbObject.scaleX || 1,
+          scaleY: lbObject.scaleY || 1,
+          angle: lbObject.angle || 0,
+        }
+      );
       break;
 
     case "text":
@@ -161,6 +190,13 @@ export function updateFabricObject(
     fabricObject.set({
       width: lbObject.width / (lbObject.scaleX || 1),
       height: lbObject.height / (lbObject.scaleY || 1),
+    });
+  } else if (lbObject.type === "line" && fabricObject instanceof fabric.Line) {
+    fabricObject.set({
+      x1: lbObject.x1 || 0,
+      y1: lbObject.y1 || 0,
+      x2: lbObject.x2 || 0,
+      y2: lbObject.y2 || 0,
     });
   }
 

@@ -6,6 +6,8 @@ import { useUser } from "@clerk/nextjs";
 import { Room } from "@/components/Room";
 import Canvas, { Tool } from "@/components/Canvas";
 import Toolbar from "@/components/Toolbar";
+import KeyboardShortcuts from "@/components/KeyboardShortcuts";
+import ActiveUsers from "@/components/ActiveUsers";
 import { UserButton } from "@clerk/nextjs";
 
 type RoomPageProps = {
@@ -54,7 +56,10 @@ export default function RoomPage({ params }: RoomPageProps) {
             <h1 className="text-xl font-semibold text-gray-800">Figma Clone</h1>
             <span className="text-sm text-gray-500">Room: {roomId}</span>
           </div>
-          <UserButton afterSignOutUrl="/" />
+          <div className="flex items-center gap-4">
+            <ActiveUsers />
+            <UserButton afterSignOutUrl="/" />
+          </div>
         </div>
 
         {/* Canvas Area with Toolbar */}
@@ -65,7 +70,12 @@ export default function RoomPage({ params }: RoomPageProps) {
             onToolChange={setActiveTool}
             onColorChange={setActiveColor}
           />
-          <Canvas activeTool={activeTool} activeColor={activeColor} />
+          <Canvas 
+            activeTool={activeTool} 
+            activeColor={activeColor} 
+            onToolChange={setActiveTool}
+          />
+          <KeyboardShortcuts />
         </div>
       </div>
     </Room>

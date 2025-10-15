@@ -18,7 +18,7 @@ export default function ActiveUsers() {
   const remainingCount = allUsers.length - 5;
 
   return (
-    <div className="absolute top-4 right-4 flex items-center gap-2 bg-white rounded-full px-4 py-2 shadow-lg border border-gray-200">
+    <div className="flex items-center gap-2">
       <div className="flex items-center -space-x-2">
         {visibleUsers.map((user, index) => (
           <div
@@ -28,7 +28,7 @@ export default function ActiveUsers() {
             title={user.name}
           >
             <div
-              className="w-9 h-9 rounded-full border-2 border-white flex items-center justify-center text-white text-sm font-medium"
+              className="w-8 h-8 rounded-full border-2 border-white flex items-center justify-center text-white text-sm font-medium shadow-sm"
               style={{ backgroundColor: user.color }}
             >
               {user.name.charAt(0).toUpperCase()}
@@ -37,7 +37,7 @@ export default function ActiveUsers() {
         ))}
         {remainingCount > 0 && (
           <div
-            className="w-9 h-9 rounded-full border-2 border-white bg-gray-400 flex items-center justify-center text-white text-xs font-medium"
+            className="w-8 h-8 rounded-full border-2 border-white bg-gray-400 flex items-center justify-center text-white text-xs font-medium shadow-sm"
             style={{ zIndex: 0 }}
           >
             +{remainingCount}
@@ -45,7 +45,7 @@ export default function ActiveUsers() {
         )}
       </div>
       <span className="text-sm font-medium text-gray-700">
-        {allUsers.length} {allUsers.length === 1 ? "user" : "users"}
+        {allUsers.length} online
       </span>
     </div>
   );
